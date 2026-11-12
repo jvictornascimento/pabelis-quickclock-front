@@ -1,62 +1,36 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+## Structure
+This repository contains the QuickClock React/TypeScript frontend.
+`src/` contains application code, `src/components/` focused UI components,
+`src/api.ts` the HTTP client, and `public/` icons and the manifest.
+Tests live beside the code as `*.test.ts` or `*.test.tsx`.
 
-This repository is a Flutter app named `quick_clock`. The current generated structure is:
+## Commands
+- `npm ci`: install pinned dependencies.
+- `npm run dev`: run Vite; `/api` proxies to `API_PROXY_TARGET` (default localhost:8080).
+- `npm test`: run Vitest and Testing Library checks.
+- `npm run build`: type-check and create `dist/`.
 
-- `lib/` for Dart application code.
-- `test/` for widget and unit tests.
-- `android/` for the Android host project.
-- `PROJECT_CONTEXT.md` for product rules and story planning.
+## Conventions
+Use strict TypeScript, PascalCase components and explicit domain types. Keep
+money in integer cents and local dates out of UTC conversions. Never populate
+real screens with demo records when the API is unavailable. Handle loading,
+empty and error states. Abort stale reads on company changes. Confirm writes
+only after API success. Use accessible labels and mobile-first layouts.
 
-Future feature code should stay under `lib/` and follow the planned modules: `features/`, `data/`, `models/`, and `shared/`.
+## Workflow
+Follow Spec 001 in the Flutter reference repo under `specs/001-quickclock/`.
+Use branches such as `feat/001-t05-react-foundation` and scoped Conventional
+Commits in simple English. Run checks before closing a branch. Approved routine
+commits, pushes and verified merges may proceed; production deploy, destructive
+data operations and new product rules need separate approval.
 
-## Build, Test, and Development Commands
+## Related Projects
+- Flutter/spec: `/mnt/c/projetos/ponto-eletronico`
+- Backend: `/mnt/z/Spring/QuickClock`
+- Frontend: `/mnt/z/react/QuickClock`
 
-Use the Flutter CLI from the repository root:
-
-- `flutter pub get` - install Dart and Flutter dependencies.
-- `flutter analyze` - run static analysis and lints.
-- `flutter test` - run automated tests.
-- `flutter run` - run on a connected Android device or emulator.
-- `flutter build apk --debug` - create a debug APK.
-
-Do not add native Android or iOS code unless the feature cannot be built in Dart/Flutter.
-
-## Coding Style & Naming Conventions
-
-Follow `flutter_lints` from `analysis_options.yaml`. Format Dart code before committing:
-
-```bash
-dart format lib test
-```
-
-Use `PascalCase` for widgets/classes, `camelCase` for variables and methods, and `snake_case.dart` for Dart filenames. Keep widgets focused and move reusable UI into `shared/` when it appears in more than one feature.
-
-## Testing Guidelines
-
-Add tests with each behavioral change. Use `flutter_test` for widget tests and plain Dart tests for business rules.
-
-Name tests by behavior, for example `shows the app shell` or `calculates month total with marked periods`. Run `flutter test` before opening a pull request.
-
-## Commit & Pull Request Guidelines
-
-Use Conventional Commits with a scope and simple English:
-
-- `feat(home): add period buttons`
-- `fix(report): hide empty days`
-- `docs(context): update story plan`
-
-Pull requests should include a concise description, linked issue when applicable, test results, and screenshots for UI changes. Note any schema, configuration, or migration steps clearly.
-
-## Agent-Specific Instructions
-
-Before editing, inspect the current repository state and avoid assuming a framework that is not present. Keep changes scoped, document new commands here, and do not remove user-created files unless explicitly requested.
-
-Keep `PROJECT_CONTEXT.md` synchronized with the related QuickClock projects:
-
-- Flutter reference app: `/mnt/c/projetos/ponto-eletronico`
-- Spring backend: `/mnt/z/Spring/QuickClock`
-- React PWA frontend: `/mnt/z/react/QuickClock`
-
-If product rules or architecture context change in one path, update the same context in the other paths during the same work.
+Keep shared product decisions in PROJECT_CONTEXT.md synchronized. First delivery
+uses local Docker and HTTP/IP through ZeroTier, without login, DNS or service
+worker. Never commit `.env`, backups, personal reports, node_modules or dist.

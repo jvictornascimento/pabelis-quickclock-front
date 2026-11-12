@@ -10,6 +10,23 @@ the shared context is intentionally updated.
 
 ## Related Project Paths
 
+The unified specification is `specs/001-quickclock/spec.md`, with the delivery
+checklist in `specs/001-quickclock/tasks.md` in the Flutter reference repository.
+It is a proposal pending review. The latest requested deployment direction is
+local Docker on the owner's PC, replacing VPS/Cloudflare for the first delivery.
+Keep Spring Boot and PostgreSQL. Approved access uses ZeroTier on the PC and phone,
+with the phone using the React PWA in its browser. Frontend, API, and database run
+in Docker on the PC. The first delivery requires a reachable API to save; there
+is no offline write queue or synchronization. Show server unavailability clearly
+and never confirm an unsaved change. PC, Docker, and ZeroTier must be available.
+Approved first delivery: HTTP via the private ZeroTier IP, no login or friendly
+DNS, no service worker. Validate Safari home screen behavior on the actual phone.
+HTTPS is deferred. Store historical period prices; accept full payments only,
+with simple reversal and no reversal history. Cards have closing and due dates;
+edit one installment or all unpaid installments, preserving paid ones.
+The original Flutter offline rules below describe
+the reference app and do not imply offline writes in the new PWA.
+
 - Flutter reference app: `/mnt/c/projetos/ponto-eletronico`
 - Spring backend: `/mnt/z/Spring/QuickClock`
 - React PWA frontend: `/mnt/z/react/QuickClock`
