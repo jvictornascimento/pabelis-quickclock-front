@@ -11,6 +11,14 @@ Tests live beside the code as `*.test.ts` or `*.test.tsx`.
 - `npm run dev`: run Vite; `/api` proxies to `API_PROXY_TARGET` (default localhost:8080).
 - `npm test`: run Vitest and Testing Library checks.
 - `npm run build`: type-check and create `dist/`.
+- `docker compose config --quiet`: validate the local stack after setting .env.
+- `docker compose up --build --wait`: build and start frontend, API and PostgreSQL.
+- `docker compose down`: stop the stack and preserve the database volume.
+
+Compose lives in this repository and builds the sibling backend. Only the proxy
+publishes a port, bound to 127.0.0.1 by default; set the private ZeroTier IP for
+phone access. Use a separate Compose project/port for QA. Never remove personal
+volumes or expose API/database ports. See README for password and network setup.
 
 ## Conventions
 Use strict TypeScript, PascalCase components and explicit domain types. Keep
