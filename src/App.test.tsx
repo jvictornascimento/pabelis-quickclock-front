@@ -3,6 +3,7 @@ import {render,screen,waitFor,fireEvent} from '@testing-library/react';
 import App from './App';
 import {api} from './api';
 vi.mock('./api',()=>({api:{companies:vi.fn(),settings:vi.fn(),createCompany:vi.fn(),saveSettings:vi.fn()}}));
+vi.mock('./components/WorkDayPage',()=>({DailyWorkPage:()=>null,WorkDaysPage:()=>null}));
 afterEach(()=>{vi.resetAllMocks();localStorage.clear();window.location.hash=''});
 const company=(id:number,name:string)=>({id,name,active:true,createdAt:'',updatedAt:''});
 const settings=(companyId:number,halfDayValueCents:number)=>({id:companyId,companyId,halfDayValueCents,updatedAt:'',weekdays:{mondayActive:true,tuesdayActive:true,wednesdayActive:true,thursdayActive:true,fridayActive:true,saturdayActive:false,sundayActive:false}});
