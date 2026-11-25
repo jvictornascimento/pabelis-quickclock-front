@@ -28,10 +28,22 @@ Base tipada, navegacao, cadastro/edicao/desativacao de empresas e configuracao
 do meio periodo e expediente conectados aos contratos existentes da API.
 Sem dados demonstrativos; sem backend acessivel, a interface mostra erro e retry.
 Somente a selecao da empresa fica no localStorage, nao os registros de negocio.
-As outras telas indicam que sua integracao ainda esta em preparacao.
+As telas de trabalho e financeiro usam a API e o PostgreSQL, nao dados mockados.
 
-Esta entrega inclui Compose, mas ainda nao inclui lancamentos diarios. A execucao final
-sera frontend, API Spring e PostgreSQL em Docker no PC, com acesso HTTP pelo IP
+- Ponto de hoje com autosave, expediente e precos historicos por periodo.
+- Consulta de dias, servicos adicionais e orcamentos com historico/aprovacao.
+- Relatorio mensal por empresa e download PDF com totais, recebido e pendente.
+- Recebimentos integrais por origem e estorno simples, sem duplicar entradas.
+- Despesas e cartoes com fechamento/vencimento e parcelas em centavos exatos.
+- Edicao de uma parcela ou das parcelas em aberto, preservando as pagas.
+- Financeiro mensal com realizado, previsto, saldo e detalhamento de gastos.
+
+A primeira tela continua sendo o trabalho de hoje. O financeiro fica no menu,
+sem exigir uma empresa selecionada. O filtro mensal permite consultar meses
+passados e futuros, inclusive as proximas parcelas.
+
+Esta entrega inclui Compose e os fluxos acima. A execucao local usa
+frontend, API Spring e PostgreSQL em Docker no PC, com acesso HTTP pelo IP
 privado ZeroTier. Nao ha login ou service worker. Abertura pela tela inicial deve
 ser validada no Safari do aparelho; nao ha garantia de abertura offline.
 
