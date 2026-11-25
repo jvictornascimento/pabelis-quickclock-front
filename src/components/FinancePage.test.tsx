@@ -1,0 +1,172 @@
+import {beforeEach, expect, it, vi} from 'vitest';
+import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import {FinancePage} from './FinancePage';
+import {request} from '../api';
+
+vi.mock('../api', () => ({request: vi.fn()}));
+const expense = {id: 8, date: '2026-11-15', description: 'Notebook', amountCents: 10000, category: 'Equipamentos', paymentMethod: 'CREDIT_CARD', cardId: 2, installmentGroupId: 'group-1', installmentNumber: 2, installmentTotal: 3, paid: false, paidAt: null};
+const pending = {companyId: 4, companyName: 'Alpha', sourceType: 'ADDITIONAL_SERVICE', sourceId: 9, date: '2026-11-10', description: 'Reparo', amountCents: 25000};
+const income = {companyId: 4, companyName: 'Alpha', sourceType: 'ADDITIONAL_SERVICE', sourceId: 9, description: 'Reparo', amountCents: 25000, id: 7, incomeDate: '2026-11-20'};
+const summary = {month: '2026-11', incomeCents: 25000, expenseCents: 0, expectedIncomeCents: 25000, expectedExpenseCents: 10000, balanceCents: 25000, projectedBalanceCents: 40000, incomes: [income], expenses: [expense], pendingIncome: [pending], paidExpenses: []};
+beforeEach(() => {
+ vi.mocked(request).mockReset();
+ vi.mocked(request).mockImplementation(async (path, options) => {
+  if (options?.method) return undefined as never;
+  if (path.startsWith('/finance?')) return structuredClone(summary) as never;
+  if (path === '/cards') return [{id: 2, name: 'Principal', closingDay: 5, dueDay: 12}] as never;
+  throw new Error(`Unexpected ${path}`);
+ });
+ vi.spyOn(window, 'confirm').mockReturnValue(true);
+});
+it('loads global finance and allows past and future months', async () => {
+ render(<FinancePage/>);
+ expect(await screen.findByText('Notebook')).toBeVisible();
+ expect(screen.getAllByText(/Alpha/).length).toBeGreaterThan(0);
+ expect(screen.getByText(/Principal.*2\/3/)).toBeVisible();
+ fireEvent.change(screen.getByLabelText('Mês financeiro'), {target: {value: '2028-01'}});
+ await waitFor(() => expect(request).toHaveBeenCalledWith('/finance?month=2028-01', expect.anything()));
+ fireEvent.change(screen.getByLabelText('Mês financeiro'), {target: {value: '2020-01'}});
+ await waitFor(() => expect(request).toHaveBeenCalledWith('/finance?month=2020-01', expect.anything()));
+});
+it('shows failure, retries and never substitutes demo data', async () => {
+ vi.mocked(request).mockRejectedValueOnce(new Error('Servidor indisponível.'));
+ render(<FinancePage/>);
+ expect(await screen.findByRole('alert')).toHaveTextContent('Servidor indisponível');
+ fireEvent.click(screen.getByRole('button', {name: 'Tentar novamente'}));
+ expect(await screen.findByText('Notebook')).toBeVisible();
+});
+it('receives a source in full and reverses with company-specific endpoints', async () => {
+ render(<FinancePage/>);
+ fireEvent.click(await screen.findByRole('button', {name: 'Receber Reparo'}));
+ fireEvent.change(screen.getByLabelText('Data do recebimento'), {target: {value: '2026-11-22'}});
+ fireEvent.click(screen.getByRole('button', {name: 'Confirmar recebimento integral'}));
+ await waitFor(() => expect(request).toHaveBeenCalledWith('/companies/4/incomes', expect.objectContaining({method: 'POST', body: JSON.stringify({sourceType: 'ADDITIONAL_SERVICE', sourceId: 9, incomeDate: '2026-11-22'})})));
+ fireEvent.click(screen.getByRole('button', {name: 'Estornar Reparo'}));
+ await waitFor(() => expect(request).toHaveBeenCalledWith('/companies/4/incomes/7', expect.objectContaining({method: 'DELETE'})));
+});
+it('edits unpaid installments with explicit scope and confirmation', async () => {
+ render(<FinancePage/>);
+ fireEvent.click(await screen.findByRole('button', {name: 'Editar Notebook'}));
+ fireEvent.change(screen.getByLabelText('Valor da parcela (R$)'), {target: {value: '125,35'}});
+ fireEvent.change(screen.getByLabelText('Aplicar alteração'), {target: {value: 'UNPAID'}});
+ fireEvent.click(screen.getByRole('button', {name: 'Salvar despesa'}));
+ await waitFor(() => expect(request).toHaveBeenCalledWith('/expenses/8?scope=UNPAID', expect.objectContaining({method: 'PUT', body: JSON.stringify({description: 'Notebook', amountCents: 12535, category: 'Equipamentos'})})));
+ expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('pagas'));
+});
+it('does not expose edit, delete or payment actions for paid expenses', async () => {
+ vi.mocked(request).mockImplementation(async path => (path === '/cards' ? [] : {...summary, expenses: [{...expense, paid: true, paidAt: '2026-11-20'}]}) as never);
+ render(<FinancePage/>);
+ await screen.findByText('Notebook');
+ const list = screen.getByRole('region', {name: 'Despesas'});
+ expect(within(list).queryByRole('button', {name: 'Editar Notebook'})).not.toBeInTheDocument();
+ expect(within(list).queryByRole('button', {name: 'Excluir Notebook'})).not.toBeInTheDocument();
+ expect(within(list).queryByRole('button', {name: 'Pagar Notebook'})).not.toBeInTheDocument();
+});
+it('creates an installment expense using total cents and the selected card', async () => {
+ render(<FinancePage/>);
+ fireEvent.click(await screen.findByRole('button', {name: 'Nova despesa'}));
+ fireEvent.change(screen.getByLabelText('Descrição'), {target: {value: 'Monitor'}});
+ fireEvent.change(screen.getByLabelText('Valor total (R$)'), {target: {value: '100,01'}});
+ fireEvent.change(screen.getByLabelText('Data da despesa'), {target: {value: '2026-12-04'}});
+ fireEvent.change(screen.getByLabelText('Forma de pagamento'), {target: {value: 'CREDIT_CARD'}});
+ fireEvent.change(screen.getByLabelText('Cartão'), {target: {value: '2'}});
+ fireEvent.change(screen.getByLabelText('Número de parcelas'), {target: {value: '3'}});
+ fireEvent.click(screen.getByRole('button', {name: 'Salvar despesa'}));
+ await waitFor(() => expect(request).toHaveBeenCalledWith('/expenses', expect.objectContaining({method: 'POST', body: JSON.stringify({description: 'Monitor', date: '2026-12-04', amountCents: 10001, category: null, paymentMethod: 'CREDIT_CARD', cardId: 2, installmentTotal: 3})})));
+});
+it('rejects invalid money locally and retains the form after a write failure', async () => {
+ render(<FinancePage/>);
+ fireEvent.click(await screen.findByRole('button', {name: 'Nova despesa'}));
+ fireEvent.change(screen.getByLabelText('Descrição'), {target: {value: 'Compra'}});
+ fireEvent.change(screen.getByLabelText('Valor total (R$)'), {target: {value: '1,234'}});
+ fireEvent.click(screen.getByRole('button', {name: 'Salvar despesa'}));
+ expect(screen.getByRole('alert')).toHaveTextContent('duas casas');
+ expect(vi.mocked(request).mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
+ vi.mocked(request).mockRejectedValueOnce(new Error('Falha ao salvar.'));
+ fireEvent.change(screen.getByLabelText('Valor total (R$)'), {target: {value: '1,23'}});
+ fireEvent.click(screen.getByRole('button', {name: 'Salvar despesa'}));
+ expect(await screen.findByRole('alert')).toHaveTextContent('Falha ao salvar');
+ expect(screen.getByLabelText('Descrição')).toHaveValue('Compra');
+ expect(screen.queryByText('Despesa cadastrada.')).not.toBeInTheDocument();
+});
+it('pays with the effective date and confirms deletion of one unpaid installment', async () => {
+ render(<FinancePage/>);
+ fireEvent.click(await screen.findByRole('button', {name: 'Pagar Notebook'}));
+ fireEvent.change(screen.getByLabelText('Data do pagamento'), {target: {value: '2026-11-23'}});
+ fireEvent.click(screen.getByRole('button', {name: 'Confirmar pagamento'}));
+ await waitFor(() => expect(request).toHaveBeenCalledWith('/expenses/8/pay', expect.objectContaining({method: 'POST', body: JSON.stringify({date: '2026-11-23'})})));
+ fireEvent.click(await screen.findByRole('button', {name: 'Excluir Notebook'}));
+ await waitFor(() => expect(request).toHaveBeenCalledWith('/expenses/8', expect.objectContaining({method: 'DELETE'})));
+ expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('2/3'));
+});
+it('creates and edits a card with its closing and due days', async () => {
+ render(<FinancePage/>);
+ fireEvent.click(await screen.findByRole('button', {name: 'Novo cartão'}));
+ fireEvent.change(screen.getByLabelText('Nome do cartão'), {target: {value: 'Reserva'}});
+ fireEvent.change(screen.getByLabelText('Dia do fechamento'), {target: {value: '7'}});
+ fireEvent.change(screen.getByLabelText('Dia do vencimento'), {target: {value: '15'}});
+ fireEvent.click(screen.getByRole('button', {name: 'Salvar cartão'}));
+ await waitFor(() => expect(request).toHaveBeenCalledWith('/cards', expect.objectContaining({method: 'POST', body: JSON.stringify({name: 'Reserva', closingDay: 7, dueDay: 15})})));
+ fireEvent.click(await screen.findByRole('button', {name: 'Editar cartão Principal'}));
+ fireEvent.change(screen.getByLabelText('Dia do fechamento'), {target: {value: '9'}});
+ fireEvent.click(screen.getByRole('button', {name: 'Salvar cartão'}));
+ await waitFor(() => expect(request).toHaveBeenCalledWith('/cards/2', expect.objectContaining({method: 'PUT', body: JSON.stringify({name: 'Principal', closingDay: 9, dueDay: 12})})));
+});
+it('shows real empty lists without artificial records', async () => {
+ vi.mocked(request).mockImplementation(async path => (path === '/cards' ? [] : {...summary, incomes: [], expenses: [], pendingIncome: []}) as never);
+ render(<FinancePage/>);
+ expect(await screen.findByText('Nenhuma despesa neste mês.')).toBeVisible();
+ expect(screen.getByText('Nenhum recebimento pendente neste mês.')).toBeVisible();
+ expect(screen.getByText('Nenhum cartão cadastrado.')).toBeVisible();
+ expect(within(screen.getByRole('region', {name: 'Pagamentos do mês'})).getByText('Nenhum pagamento registrado neste mês.')).toBeVisible();
+ expect(screen.queryByRole('region', {name: 'Receitas por empresa'})).not.toBeInTheDocument();
+});
+it('groups received and pending amounts by company without duplicating sources or totals', async () => {
+ const incomes = [{...income, amountCents: 10001}, {...income, id: 11, companyId: 5, companyName: 'Beta', amountCents: 20002}, {...income, id: 12, sourceId: 10, amountCents: 500}];
+ const pendingIncome = [{...pending, sourceId: 20, amountCents: 333}, {...pending, companyId: 5, companyName: 'Beta', sourceId: 20, amountCents: 444}, {...pending, companyId: 5, companyName: 'Beta', sourceId: 21, amountCents: 555}];
+ vi.mocked(request).mockImplementation(async path => (path === '/cards' ? [] : {...summary, incomeCents: 30503, expectedIncomeCents: 1332, incomes, pendingIncome}) as never);
+ render(<FinancePage/>);
+ const companies = await screen.findByRole('region', {name: 'Receitas por empresa'});
+ const rows = within(companies).getAllByRole('listitem');
+ expect(rows).toHaveLength(2);
+ const alpha = rows.find(row => within(row).queryByText('Alpha'))!;
+ const beta = rows.find(row => within(row).queryByText('Beta'))!;
+ expect(within(alpha).getByText(/Recebido.*105,01/)).toBeVisible();
+ expect(within(alpha).getByText(/Pendente.*3,33/)).toBeVisible();
+ expect(within(beta).getByText(/Recebido.*200,02/)).toBeVisible();
+ expect(within(beta).getByText(/Pendente.*9,99/)).toBeVisible();
+ expect(screen.getByText('Recebido', {selector: 'dt'}).nextElementSibling).toHaveTextContent('305,03');
+ expect(screen.getByText('A receber', {selector: 'dt'}).nextElementSibling).toHaveTextContent('13,32');
+});
+it('shows effective payments separately from scheduled installments without double counting', async () => {
+ const previousMonth = {...expense, id: 20, description: 'Compra de outubro', date: '2026-10-15', paid: true, paidAt: '2026-11-05', amountCents: 7000};
+ const currentMonth = {...expense, id: 21, description: 'Compra de novembro', paid: true, paidAt: '2026-11-20', amountCents: 3000};
+ vi.mocked(request).mockImplementation(async path => (path === '/cards' ? [{id: 2, name: 'Principal', closingDay: 5, dueDay: 12}] : {...summary, expenseCents: 10000, balanceCents: 15000, projectedBalanceCents: 30000, expenses: [expense, currentMonth], paidExpenses: [previousMonth, currentMonth]}) as never);
+ render(<FinancePage/>);
+ const payments = await screen.findByRole('region', {name: 'Pagamentos do mês'});
+ expect(within(payments).getAllByRole('listitem')).toHaveLength(2);
+ expect(within(payments).getByText('Compra de outubro')).toBeVisible();
+ expect(within(payments).getByText(/Pago em 05\/11\/2026.*Vencimento 15\/10\/2026/)).toBeVisible();
+ expect(within(payments).getAllByText(/Equipamentos.*Cartão de crédito.*Principal.*2\/3/)).toHaveLength(2);
+ expect(within(payments).queryByRole('button')).not.toBeInTheDocument();
+ const scheduled = screen.getByRole('region', {name: 'Despesas'});
+ expect(within(scheduled).queryByText('Compra de outubro')).not.toBeInTheDocument();
+ expect(within(scheduled).getAllByRole('listitem')).toHaveLength(2);
+ const categories = screen.getByRole('region', {name: 'Despesas por categoria'});
+ expect(within(categories).getByText(/Pagas.*30,00/)).toBeVisible();
+ expect(within(categories).getByText(/Em aberto.*100,00/)).toBeVisible();
+ expect(screen.getByText('Despesas pagas', {selector: 'dt'}).nextElementSibling).toHaveTextContent('100,00');
+ expect(screen.getByText('Saldo realizado', {selector: 'dt'}).nextElementSibling).toHaveTextContent('150,00');
+ expect(screen.getByText('Saldo previsto', {selector: 'dt'}).nextElementSibling).toHaveTextContent('300,00');
+});
+it('groups monthly expenses without mixing paid and open installments', async () => {
+ vi.mocked(request).mockImplementation(async path => (path === '/cards' ? [{id: 2, name: 'Principal', closingDay: 5, dueDay: 12}] : {...summary, expenses: [expense, {...expense, id: 10, paid: true, amountCents: 5000}]}) as never);
+ render(<FinancePage/>);
+ const breakdown = await screen.findByRole('region', {name: 'Despesas por categoria'});
+ expect(within(breakdown).getByText('Equipamentos')).toBeVisible();
+ expect(within(breakdown).getByText(/Pagas.*50,00/)).toBeVisible();
+ expect(within(breakdown).getByText(/Em aberto.*100,00/)).toBeVisible();
+ expect(within(screen.getByRole('region', {name: 'Despesas por pagamento'})).getByText('Cartão de crédito')).toBeVisible();
+ expect(within(screen.getByRole('region', {name: 'Despesas por cartão'})).getByText('Principal')).toBeVisible();
+ expect(screen.queryByRole('heading', {level: 1})).not.toBeInTheDocument();
+});
