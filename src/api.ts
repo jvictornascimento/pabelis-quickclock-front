@@ -11,7 +11,7 @@ export async function request<T>(path:string, options:RequestInit = {}):Promise<
   options.signal?.addEventListener('abort', abort, {once:true});
   if(options.signal?.aborted) controller.abort();
   try {
-    const response = await fetch('/api'+path, {...options, signal:controller.signal,
+    const response = await fetch('/api'+path, {cache:'no-store', ...options, signal:controller.signal,
       headers:{...options.headers, ...(options.body?{'Content-Type':'application/json'}:{})}});
     if(!response.ok){
       const message = response.status===404?'Registro não encontrado.':response.status>=500?'Servidor indisponível. Tente novamente.':'Não foi possível salvar. Confira os dados.';
